@@ -1,0 +1,51 @@
+services:
+  app:
+    build: .
+    ports:
+      - "4010:3000" # Frontend/Backend (Next.js is fullstack)
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://passman_user:passman_password@postgres:5432/passman_db
+      - REDIS_URL=redis://redis:6379
+      - NEXTAUTH_SECRET=changeme_in_production
+      - NEXTAUTH_URL=http://localhost:4010
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=passman_user
+      - POSTGRES_PASSWORD=passman_password
+      - POSTGRES_DB=passman_db
+    ports:
+      - "5410:5432" # Isolated host port to avoid conflict with existing PG
+    volumes:
+      - passman_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U passman_user -d passman_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6310:6379" # Isolated host port
+    volumes:
+      - passman_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  passman_pg_data:
+  passman_redis_data:
