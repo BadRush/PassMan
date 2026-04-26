@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Search, Shield, LogOut, Globe, StickyNote, CreditCard, User, Star, Lock } from "lucide-react";
+import { Plus, Search, Shield, Lock } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { useAuthStore } from "@/stores/auth-store";
 import { decrypt, type EncryptedPayload } from "@/lib/crypto/aes";
 import { signOut } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import { VaultItemCard, type VaultItemData } from "@/components/vault/vault-item-card";
 import { AddItemModal } from "@/components/vault/add-item-modal";
 import { ItemDetailPanel } from "@/components/vault/item-detail-panel";
-import { FolderSidebar } from "@/components/vault/folder-sidebar";
+import { Sidebar } from "@/components/vault/sidebar";
 import { ExportImportModal } from "@/components/vault/export-import-modal";
 import {
   DndContext,
@@ -30,9 +31,12 @@ type FilterType = "all" | "login" | "note" | "card" | "identity" | "favorites";
 export default function VaultPage() {
   const encryptionKey = useAuthStore((s) => s.encryptionKey);
   const clearAuth = useAuthStore((s) => s.clearAuth);
+  const searchParams = useSearchParams();
 
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterType>("all");
+  const [filter, setFilter] = useState<FilterType>(
+    (searchParams.get("filter") as FilterType) || "all"
+  );
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -106,10 +110,7 @@ export default function VaultPage() {
     refetch();
   };
 
-  const handleLogout = async () => {
-    clearAuth();
-    await signOut({ callbackUrl: "/login" });
-  };
+
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -180,14 +181,7 @@ export default function VaultPage() {
     }
   };
 
-  const sidebarCategories: { key: FilterType; label: string; icon: React.ReactNode }[] = [
-    { key: "all", label: "All Items", icon: <Shield className="w-4 h-4" /> },
-    { key: "favorites", label: "Favorites", icon: <Star className="w-4 h-4" /> },
-    { key: "login", label: "Logins", icon: <Globe className="w-4 h-4" /> },
-    { key: "note", label: "Secure Notes", icon: <StickyNote className="w-4 h-4" /> },
-    { key: "card", label: "Cards", icon: <CreditCard className="w-4 h-4" /> },
-    { key: "identity", label: "Identities", icon: <User className="w-4 h-4" /> },
-  ];
+
 
   // If no encryption key, show re-login prompt
   if (!encryptionKey) {
@@ -219,59 +213,17 @@ export default function VaultPage() {
       onDragEnd={handleDragEnd}
     >
       <div className="min-h-screen bg-zinc-950 flex">
-        {/* Sidebar */}
-        <aside className="w-56 bg-zinc-950 border-r border-zinc-800/50 p-4 flex flex-col">
-          <div className="flex items-center gap-2 mb-8 px-2">
-            <Shield className="w-6 h-6 text-blue-400" />
-            <span className="font-bold text-white text-lg tracking-tight">PassMan</span>
-          </div>
-
-          <nav className="space-y-1">
-            {sidebarCategories.map((cat) => (
-              <button
-                key={cat.key}
-                onClick={() => { setFilter(cat.key); setActiveFolderId(null); setSelectedId(null); }}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all ${
-                  filter === cat.key && activeFolderId === null
-                    ? "bg-blue-500/10 text-blue-400"
-                    : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
-                }`}
-              >
-                {cat.icon}
-                {cat.label}
-              </button>
-            ))}
-          </nav>
-
-          <div className="flex-1 overflow-y-auto">
-            {filter === "all" && (
-              <FolderSidebar
-                activeFolderId={activeFolderId}
-                onSelectFolder={(id) => {
-                  setActiveFolderId(id);
-                  setFilter("all");
-                  setSelectedId(null);
-                }}
-              />
-            )}
-          </div>
-
-          <button
-            onClick={() => setShowExportImportModal(true)}
-            className="flex items-center gap-2 px-3 py-2 mt-4 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
-          >
-            <Shield className="w-4 h-4" />
-            Export & Import
-          </button>
-
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-3 py-2 mt-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            Lock Vault
-          </button>
-        </aside>
+        <Sidebar 
+          filter={filter}
+          activeFolderId={activeFolderId}
+          onFilterChange={setFilter}
+          onFolderSelect={(id) => {
+            setActiveFolderId(id);
+            setFilter("all");
+            setSelectedId(null);
+          }}
+          onShowExportImport={() => setShowExportImportModal(true)}
+        />
 
         {/* Main Content */}
         <div className="flex-1 flex">

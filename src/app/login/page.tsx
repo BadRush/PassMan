@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { deriveMasterKeys } from "@/lib/crypto/argon2";
@@ -13,8 +13,13 @@ import { Shield, ArrowLeft } from "lucide-react";
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [showTotp, setShowTotp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+
+  // Cache derived keys to avoid re-running Argon2 on TOTP submit
+  const cachedKeysRef = useRef<{ authKeyHash: string; encryptionKey: CryptoKey } | null>(null);
 
   const encryptionKey = useAuthStore((state) => state.encryptionKey);
   const setEncryptionKey = useAuthStore((state) => state.setEncryptionKey);
@@ -29,32 +34,63 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    const loadingToastId = toast.loading("Unlocking vault...");
+    const loadingToastId = toast.loading(showTotp ? "Verifying code..." : "Unlocking vault...");
 
     try {
-      const saltsResult = await fetchSalts();
-      if (!saltsResult.data || !saltsResult.data.exists) {
-        throw new Error("Invalid email or master password");
-      }
+      // Use cached keys if available (TOTP step), otherwise derive
+      let keys = cachedKeysRef.current;
 
-      const keys = await deriveMasterKeys(
-        email,
-        password,
-        saltsResult.data.saltAuth,
-        saltsResult.data.saltEnc
-      );
+      if (!keys) {
+        // Step 1: Verify Email + Password
+        const saltsResult = await fetchSalts();
+        if (!saltsResult.data || !saltsResult.data.exists) {
+          throw new Error("Invalid email or master password");
+        }
 
-      const signInResult = await signIn("credentials", {
-        redirect: false,
-        email,
-        authKeyHash: keys.authKeyHash,
-      });
+        keys = await deriveMasterKeys(
+          email,
+          password,
+          saltsResult.data.saltAuth,
+          saltsResult.data.saltEnc
+        );
 
-      if (signInResult?.error) {
-        throw new Error("Invalid email or master password");
+        // Verify credentials with NextAuth first
+        const signInResult = await signIn("credentials", {
+          redirect: false,
+          email,
+          authKeyHash: keys.authKeyHash,
+        });
+
+        if (signInResult?.error) {
+          const isTotpRequired = 
+            signInResult.error === "TOTP_REQUIRED" || 
+            (signInResult as any).code === "TOTP_REQUIRED";
+
+          if (isTotpRequired) {
+            cachedKeysRef.current = keys;
+            setShowTotp(true);
+            toast.dismiss(loadingToastId);
+            return;
+          }
+          
+          throw new Error("Invalid email or master password");
+        }
+      } else {
+        // Step 2: Verify TOTP Code
+        const signInResult = await signIn("credentials", {
+          redirect: false,
+          email,
+          authKeyHash: keys.authKeyHash,
+          totpCode,
+        });
+
+        if (signInResult?.error) {
+          throw new Error("Invalid 2FA code");
+        }
       }
 
       setEncryptionKey(keys.encryptionKey);
+      cachedKeysRef.current = null; // Clear cache
 
       toast.success("Vault unlocked!", { id: loadingToastId });
       router.push("/vault");
@@ -118,6 +154,28 @@ export default function LoginPage() {
               />
             </div>
 
+            {showTotp && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="space-y-1.5"
+              >
+                <label className="block text-sm font-medium text-blue-400">Two-Factor Code</label>
+                <input
+                  type="text"
+                  required
+                  maxLength={6}
+                  autoFocus
+                  className="w-full bg-zinc-950 border border-blue-500/30 rounded-xl px-4 py-2.5 text-white placeholder:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono tracking-widest text-center"
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ""))}
+                  placeholder="000000"
+                  disabled={isLoading}
+                />
+                <p className="text-[10px] text-zinc-500 text-center">Enter the code from your authenticator app</p>
+              </motion.div>
+            )}
+
             <motion.button
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
@@ -125,7 +183,7 @@ export default function LoginPage() {
               disabled={isLoading}
               className="w-full bg-white text-zinc-900 font-semibold rounded-xl px-4 py-2.5 mt-2 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-zinc-900 disabled:opacity-50 transition-all"
             >
-              {isLoading ? "Decrypting..." : "Unlock Vault"}
+              {isLoading ? "Processing..." : showTotp ? "Verify & Unlock" : "Unlock Vault"}
             </motion.button>
           </form>
 

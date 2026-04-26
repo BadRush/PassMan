@@ -10,7 +10,10 @@ const withSerwist = withSerwistInit({
 const nextConfig: NextConfig = {
   /* config options here */
   output: "standalone",
-  turbopack: {},
 };
 
-export default withSerwist(nextConfig);
+// In development, Next.js 16 uses Turbopack by default.
+// withSerwist injects a webpack plugin that conflicts with Turbopack.
+// Only apply Serwist wrapper in production builds.
+const isDev = process.env.NODE_ENV === "development";
+export default isDev ? nextConfig : withSerwist(nextConfig);

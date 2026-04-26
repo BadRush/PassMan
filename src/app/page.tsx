@@ -76,7 +76,7 @@ export default function HomePage() {
       {/* Hero */}
       <section className="relative pt-24 pb-20 px-6">
         {/* Gradient orbs */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-gradient-to-b from-blue-500/8 via-purple-500/5 to-transparent rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-linear-to-b from-blue-500/8 via-purple-500/5 to-transparent rounded-full blur-3xl pointer-events-none" />
 
         <div className="max-w-3xl mx-auto text-center relative z-10">
           <motion.div
@@ -91,7 +91,7 @@ export default function HomePage() {
 
             <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight leading-[1.1] mb-6">
               Your passwords,{" "}
-              <span className="bg-gradient-to-r from-blue-400 via-blue-300 to-purple-400 bg-clip-text text-transparent">
+              <span className="bg-linear-to-r from-blue-400 via-blue-300 to-purple-400 bg-clip-text text-transparent">
                 truly private.
               </span>
             </h1>
