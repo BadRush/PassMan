@@ -15,9 +15,25 @@ const geistMono = Geist_Mono({
 import { TRPCProvider } from "@/components/providers/trpc-provider";
 import { Toaster } from "sonner";
 
+import type { Viewport } from "next";
+
+export const viewport: Viewport = {
+  themeColor: "#09090b",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export const metadata: Metadata = {
   title: "PassMan - Zero Knowledge Password Manager",
   description: "Secure, self-hosted, web-based zero-knowledge password manager",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "PassMan",
+  },
 };
 
 export default function RootLayout({
