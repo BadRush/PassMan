@@ -219,7 +219,9 @@ export default function VaultPage() {
           onFilterChange={setFilter}
           onFolderSelect={(id) => {
             setActiveFolderId(id);
-            setFilter("all");
+            if (id !== null) {
+              setFilter("all");
+            }
             setSelectedId(null);
           }}
           onShowExportImport={() => setShowExportImportModal(true)}
