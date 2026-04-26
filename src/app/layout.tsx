@@ -13,6 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 import { TRPCProvider } from "@/components/providers/trpc-provider";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: "PassMan - Zero Knowledge Password Manager",
@@ -31,7 +32,10 @@ export default function RootLayout({
       style={{ colorScheme: "dark" }}
     >
       <body className="min-h-full flex flex-col">
-        <TRPCProvider>{children}</TRPCProvider>
+        <TRPCProvider>
+          {children}
+          <Toaster theme="dark" position="top-center" richColors />
+        </TRPCProvider>
       </body>
     </html>
   );
