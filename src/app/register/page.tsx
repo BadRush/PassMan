@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { deriveMasterKeys } from "@/lib/crypto/argon2";
@@ -18,8 +18,15 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
+  const encryptionKey = useAuthStore((state) => state.encryptionKey);
   const setEncryptionKey = useAuthStore((state) => state.setEncryptionKey);
   const registerMutation = trpc.auth.register.useMutation();
+
+  useEffect(() => {
+    if (encryptionKey) {
+      router.push("/vault");
+    }
+  }, [encryptionKey, router]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();

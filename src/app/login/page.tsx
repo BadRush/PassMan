@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { deriveMasterKeys } from "@/lib/crypto/argon2";
@@ -16,8 +16,15 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
+  const encryptionKey = useAuthStore((state) => state.encryptionKey);
   const setEncryptionKey = useAuthStore((state) => state.setEncryptionKey);
   const { refetch: fetchSalts } = trpc.auth.getSalts.useQuery({ email }, { enabled: false });
+
+  useEffect(() => {
+    if (encryptionKey) {
+      router.push("/vault");
+    }
+  }, [encryptionKey, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
