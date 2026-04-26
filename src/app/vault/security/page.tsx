@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/vault/sidebar";
 import { trpc } from "@/lib/trpc/client";
-import { Shield, Key, CheckCircle2, AlertCircle, Loader2, ArrowRight, ShieldOff, ShieldCheck } from "lucide-react";
+import { Shield, Key, CheckCircle2, AlertCircle, Loader2, ArrowRight, ShieldOff, ShieldCheck, Menu } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SecurityPage() {
@@ -12,6 +12,7 @@ export default function SecurityPage() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [totpEnabled, setTotpEnabled] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const setupMutation = trpc.auth.setupTotp.useMutation();
   const verifyMutation = trpc.auth.verifyTotpSetup.useMutation();
@@ -67,11 +68,23 @@ export default function SecurityPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex">
-      <Sidebar />
+    <div className="h-screen bg-zinc-950 flex overflow-hidden">
+      <Sidebar isMobileOpen={isSidebarOpen} onCloseMobile={() => setIsSidebarOpen(false)} />
 
-      <main className="flex-1 p-8 overflow-y-auto">
-        <div className="max-w-2xl mx-auto">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        {/* Mobile Top Bar */}
+        <div className="md:hidden flex items-center justify-between p-4 border-b border-zinc-800/50 shrink-0 bg-zinc-950">
+          <div className="flex items-center gap-2">
+            <Shield className="w-6 h-6 text-blue-400" />
+            <span className="font-bold text-white text-lg tracking-tight">PassMan</span>
+          </div>
+          <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-zinc-400 hover:bg-zinc-800 rounded-lg">
+            <Menu className="w-6 h-6" />
+          </button>
+        </div>
+
+        <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+          <div className="max-w-2xl mx-auto">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center">
               <Shield className="w-6 h-6 text-blue-400" />
@@ -232,6 +245,7 @@ export default function SecurityPage() {
           </div>
         </div>
       </main>
+      </div>
     </div>
   );
 }

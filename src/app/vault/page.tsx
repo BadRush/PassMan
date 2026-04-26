@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Plus, Search, Shield, Lock } from "lucide-react";
+import { Plus, Search, Shield, Lock, Menu } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import { useAuthStore } from "@/stores/auth-store";
 import { decrypt, type EncryptedPayload } from "@/lib/crypto/aes";
@@ -41,6 +41,7 @@ export default function VaultPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showExportImportModal, setShowExportImportModal] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [decryptedItems, setDecryptedItems] = useState<Map<string, VaultItemData>>(new Map());
   const [activeDragItem, setActiveDragItem] = useState<VaultItemData | null>(null);
 
@@ -225,14 +226,28 @@ export default function VaultPage() {
             setSelectedId(null);
           }}
           onShowExportImport={() => setShowExportImportModal(true)}
+          isMobileOpen={isSidebarOpen}
+          onCloseMobile={() => setIsSidebarOpen(false)}
         />
 
         {/* Main Content */}
-        <div className="flex-1 flex">
-          {/* Item List */}
-          <div className="w-80 border-r border-zinc-800/50 flex flex-col">
-            {/* Search + Add */}
-            <div className="p-4 border-b border-zinc-800/50 space-y-3">
+        <div className="flex-1 flex flex-col h-screen overflow-hidden">
+          {/* Mobile Top Bar */}
+          <div className="md:hidden flex items-center justify-between p-4 border-b border-zinc-800/50 shrink-0 bg-zinc-950">
+            <div className="flex items-center gap-2">
+              <Shield className="w-6 h-6 text-blue-400" />
+              <span className="font-bold text-white text-lg tracking-tight">PassMan</span>
+            </div>
+            <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-zinc-400 hover:bg-zinc-800 rounded-lg">
+              <Menu className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="flex-1 flex overflow-hidden">
+            {/* Item List */}
+            <div className={`w-full md:w-80 border-r border-zinc-800/50 flex-col ${selectedId ? 'hidden md:flex' : 'flex'}`}>
+              {/* Search + Add */}
+              <div className="p-4 border-b border-zinc-800/50 space-y-3 shrink-0">
               <div className="relative">
                 <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -281,7 +296,7 @@ export default function VaultPage() {
           </div>
 
           {/* Detail Panel */}
-          <div className="flex-1 p-6 overflow-y-auto">
+          <div className={`flex-1 p-4 md:p-6 overflow-y-auto ${!selectedId ? 'hidden md:block' : 'block'}`}>
             {selectedRawItem ? (
               <ItemDetailPanel
                 item={selectedRawItem}
@@ -299,6 +314,7 @@ export default function VaultPage() {
             )}
           </div>
         </div>
+      </div>
 
         {/* Add Item Modal */}
         <AddItemModal
