@@ -13,10 +13,6 @@ services:
       - REDIS_URL=redis://redis:6379
       - NEXTAUTH_SECRET=changeme_in_production
       - NEXTAUTH_URL=http://localhost:4010
-    volumes:
-      - .:/app
-      - /app/node_modules
-      - /app/.next
 
   postgres:
     image: postgres:16-alpine

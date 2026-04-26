@@ -1,7 +1,10 @@
 {
   "name": "passman",
-  "version": "0.1.0",
-  "private": true,
+  "version": "1.0.0",
+  "description": "Zero-Knowledge Password Manager",
+  "author": "BadRush",
+  "license": "MIT",
+  "private": false,
   "scripts": {
     "dev": "next dev -p 4010",
     "build": "next build",

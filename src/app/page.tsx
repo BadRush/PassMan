@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useAuthStore } from "@/stores/auth-store";
 import { motion } from "framer-motion";
 import { Shield, Lock, Eye, Zap, Server, ArrowRight } from "lucide-react";
 import Link from "next/link";
@@ -36,6 +38,13 @@ const features = [
 ];
 
 export default function HomePage() {
+  const encryptionKey = useAuthStore((state) => state.encryptionKey);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <div className="min-h-screen bg-zinc-950 text-white overflow-hidden">
       {/* Nav */}
@@ -46,12 +55,20 @@ export default function HomePage() {
             <span className="font-bold text-lg tracking-tight">PassMan</span>
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/login" className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">
-              Login
-            </Link>
-            <Link href="/register" className="px-4 py-2 text-sm bg-white text-zinc-900 font-medium rounded-lg hover:bg-zinc-100 transition-colors">
-              Get Started
-            </Link>
+            {mounted && encryptionKey ? (
+              <Link href="/vault" className="px-4 py-2 text-sm bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors">
+                Go to Vault
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">
+                  Login
+                </Link>
+                <Link href="/register" className="px-4 py-2 text-sm bg-white text-zinc-900 font-medium rounded-lg hover:bg-zinc-100 transition-colors">
+                  Get Started
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -85,21 +102,35 @@ export default function HomePage() {
             </p>
 
             <div className="flex items-center justify-center gap-4">
-              <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}>
-                <Link
-                  href="/register"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-white text-zinc-900 font-semibold rounded-xl hover:bg-zinc-100 transition-colors shadow-lg shadow-white/5"
-                >
-                  Create Your Vault
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-              </motion.div>
-              <Link
-                href="/login"
-                className="inline-flex items-center gap-2 px-6 py-3 text-zinc-400 hover:text-white border border-zinc-800 rounded-xl hover:border-zinc-700 transition-all"
-              >
-                Unlock Vault
-              </Link>
+              {mounted && encryptionKey ? (
+                <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}>
+                  <Link
+                    href="/vault"
+                    className="inline-flex items-center gap-2 px-8 py-3.5 bg-white text-zinc-900 font-semibold rounded-xl hover:bg-zinc-100 transition-colors shadow-lg shadow-white/5"
+                  >
+                    Open Your Vault
+                    <ArrowRight className="w-5 h-5" />
+                  </Link>
+                </motion.div>
+              ) : (
+                <>
+                  <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}>
+                    <Link
+                      href="/register"
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-white text-zinc-900 font-semibold rounded-xl hover:bg-zinc-100 transition-colors shadow-lg shadow-white/5"
+                    >
+                      Create Your Vault
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </motion.div>
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center gap-2 px-6 py-3 text-zinc-400 hover:text-white border border-zinc-800 rounded-xl hover:border-zinc-700 transition-all"
+                  >
+                    Unlock Vault
+                  </Link>
+                </>
+              )}
             </div>
           </motion.div>
         </div>
