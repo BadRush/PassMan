@@ -125,4 +125,64 @@ export const vaultRouter = router({
       });
       return { isFavorite: !item.isFavorite };
     }),
+
+  moveToFolder: protectedProcedure
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        folderId: z.string().uuid().nullable(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const item = await ctx.db.vaultItem.findFirst({
+        where: { id: input.id, userId: ctx.userId },
+      });
+      if (!item) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Item not found" });
+      }
+      await ctx.db.vaultItem.update({
+        where: { id: input.id },
+        data: { folderId: input.folderId },
+      });
+      return { success: true };
+    }),
+
+  reorder: protectedProcedure
+    .input(
+      z.array(
+        z.object({
+          id: z.string().uuid(),
+          sortOrder: z.number(),
+        })
+      )
+    )
+    .mutation(async ({ ctx, input }) => {
+      const updates = input.map((item) =>
+        ctx.db.vaultItem.update({
+          where: { id: item.id, userId: ctx.userId },
+          data: { sortOrder: item.sortOrder },
+        })
+      );
+      return ctx.db.$transaction(updates);
+    }),
+
+  importItems: protectedProcedure
+    .input(
+      z.array(
+        z.object({
+          encryptedData: z.string(),
+          iv: z.string(),
+          authTag: z.string(),
+          type: z.string(),
+        })
+      )
+    )
+    .mutation(async ({ ctx, input }) => {
+      const data = input.map((item) => ({
+        ...item,
+        userId: ctx.userId,
+      }));
+      await ctx.db.vaultItem.createMany({ data });
+      return { success: true, count: data.length };
+    }),
 });

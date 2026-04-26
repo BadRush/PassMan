@@ -17,6 +17,7 @@ interface Props {
 export function AddItemModal({ isOpen, onClose, onSuccess }: Props) {
   const encryptionKey = useAuthStore((s) => s.encryptionKey);
   const createMutation = trpc.vault.create.useMutation();
+  const { data: folders } = trpc.folder.list.useQuery();
 
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
@@ -24,6 +25,7 @@ export function AddItemModal({ isOpen, onClose, onSuccess }: Props) {
   const [password, setPassword] = useState("");
   const [notes, setNotes] = useState("");
   const [type, setType] = useState<"login" | "note" | "card" | "identity">("login");
+  const [folderId, setFolderId] = useState<string>("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -59,6 +61,7 @@ export function AddItemModal({ isOpen, onClose, onSuccess }: Props) {
         iv: encrypted.iv,
         authTag: encrypted.authTag,
         type,
+        folderId: folderId || undefined,
       });
 
       toast.success("Item added to vault");
@@ -199,6 +202,23 @@ export function AddItemModal({ isOpen, onClose, onSuccess }: Props) {
               </div>
             </>
           )}
+
+          {/* Folder */}
+          <div>
+            <label className="block text-sm font-medium text-zinc-300 mb-1">Folder</label>
+            <select
+              value={folderId}
+              onChange={(e) => setFolderId(e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            >
+              <option value="">Uncategorized</option>
+              {folders?.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {/* Notes */}
           <div>

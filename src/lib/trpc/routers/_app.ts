@@ -1,6 +1,7 @@
 import { router, publicProcedure } from "../init";
 import { authRouter } from "./auth";
 import { vaultRouter } from "./vault";
+import { folderRouter } from "./folder";
 
 export const appRouter = router({
   hello: publicProcedure.query(() => {
@@ -8,6 +9,7 @@ export const appRouter = router({
   }),
   auth: authRouter,
   vault: vaultRouter,
+  folder: folderRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -1,6 +1,8 @@
 "use client";
 
-import { Star, Globe, StickyNote, CreditCard, User, Eye } from "lucide-react";
+import { Star, Globe, StickyNote, CreditCard, User, GripVertical } from "lucide-react";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 export interface VaultItemData {
   id: string;
@@ -26,16 +28,46 @@ interface Props {
 }
 
 export function VaultItemCard({ item, isSelected, onSelect, onToggleFavorite }: Props) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: item.id,
+    data: {
+      type: "VaultItem",
+      item,
+    },
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
   return (
     <div
+      ref={setNodeRef}
+      style={style}
       onClick={() => onSelect(item.id)}
-      className={`group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all duration-150 border ${
+      className={`group flex items-center gap-2 px-3 py-3 rounded-xl cursor-pointer transition-all duration-150 border ${
         isSelected
           ? "bg-blue-500/10 border-blue-500/30"
           : "bg-zinc-900/50 border-zinc-800/50 hover:bg-zinc-800/70 hover:border-zinc-700"
       }`}
     >
-      <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center">
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing p-1 text-zinc-600 hover:text-zinc-400"
+      >
+        <GripVertical className="w-4 h-4" />
+      </div>
+      <div className="shrink-0 w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center">
         {typeIcons[item.type] || <Globe className="w-5 h-5 text-zinc-400" />}
       </div>
       <div className="flex-1 min-w-0">
@@ -44,7 +76,7 @@ export function VaultItemCard({ item, isSelected, onSelect, onToggleFavorite }: 
           <p className="text-xs text-zinc-500 truncate">{item.username}</p>
         )}
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 pr-1">
         <button
           onClick={(e) => {
             e.stopPropagation();

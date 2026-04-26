@@ -7,13 +7,15 @@ import { deriveMasterKeys } from "@/lib/crypto/argon2";
 import { useAuthStore } from "@/stores/auth-store";
 import { toast } from "sonner";
 import { signIn } from "next-auth/react";
+import { motion } from "framer-motion";
+import { Shield, ArrowLeft } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  
+
   const setEncryptionKey = useAuthStore((state) => state.setEncryptionKey);
   const { refetch: fetchSalts } = trpc.auth.getSalts.useQuery({ email }, { enabled: false });
 
@@ -23,21 +25,18 @@ export default function LoginPage() {
     const loadingToastId = toast.loading("Unlocking vault...");
 
     try {
-      // 1. Fetch user salts (Auth and Enc salts)
       const saltsResult = await fetchSalts();
       if (!saltsResult.data || !saltsResult.data.exists) {
         throw new Error("Invalid email or master password");
       }
 
-      // 2. Derive keys client-side (Zero-Knowledge)
       const keys = await deriveMasterKeys(
-        email, 
-        password, 
-        saltsResult.data.saltAuth, 
+        email,
+        password,
+        saltsResult.data.saltAuth,
         saltsResult.data.saltEnc
       );
 
-      // 3. Login using NextAuth and AuthKeyHash
       const signInResult = await signIn("credentials", {
         redirect: false,
         email,
@@ -48,11 +47,10 @@ export default function LoginPage() {
         throw new Error("Invalid email or master password");
       }
 
-      // 4. Store EncryptionKey in memory
       setEncryptionKey(keys.encryptionKey);
 
-      toast.success("Vault unlocked successfully!", { id: loadingToastId });
-      router.push("/vault"); // Redirection dummy route for now
+      toast.success("Vault unlocked!", { id: loadingToastId });
+      router.push("/vault");
     } catch (error: any) {
       toast.error(error.message || "Failed to unlock vault", { id: loadingToastId });
     } finally {
@@ -61,48 +59,81 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-950 p-4">
-      <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-2xl">
-        <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">Unlock Vault</h1>
-        <p className="text-zinc-400 mb-8">Enter your master password to access your credentials.</p>
+    <div className="min-h-screen flex items-center justify-center bg-zinc-950 p-4 relative overflow-hidden">
+      {/* Background glow */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1">Email</label>
-            <input
-              type="email"
-              required
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-zinc-300 mb-1">Master Password</label>
-            <input
-              type="password"
-              required
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isLoading}
-            />
-          </div>
-          
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-white text-zinc-900 font-semibold rounded-lg px-4 py-2 mt-4 hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-zinc-900 disabled:opacity-50 transition-all"
-          >
-            {isLoading ? "Decrypting..." : "Unlock Vault"}
-          </button>
-        </form>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="w-full max-w-md relative z-10"
+      >
+        <a href="/" className="inline-flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 text-sm mb-6 transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+          Back to home
+        </a>
 
-        <div className="mt-6 text-center text-sm text-zinc-500">
-          Don't have a vault? <a href="/register" className="text-blue-400 hover:text-blue-300">Create one</a>
+        <div className="bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-2xl p-8 shadow-2xl">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center">
+              <Shield className="w-5 h-5 text-blue-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Unlock Vault</h1>
+              <p className="text-sm text-zinc-500">Enter your master password</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Email</label>
+              <input
+                type="email"
+                required
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+                placeholder="your@email.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-300 mb-1.5">Master Password</label>
+              <input
+                type="password"
+                required
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                placeholder="Your master password"
+              />
+            </div>
+
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-white text-zinc-900 font-semibold rounded-xl px-4 py-2.5 mt-2 hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-white/50 focus:ring-offset-2 focus:ring-offset-zinc-900 disabled:opacity-50 transition-all"
+            >
+              {isLoading ? "Decrypting..." : "Unlock Vault"}
+            </motion.button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-zinc-500">
+            Don't have a vault?{" "}
+            <a href="/register" className="text-blue-400 hover:text-blue-300 transition-colors">
+              Create one
+            </a>
+          </p>
         </div>
-      </div>
+
+        <p className="text-center text-xs text-zinc-700 mt-4">
+          Your password is hashed locally before any network request.
+        </p>
+      </motion.div>
     </div>
   );
 }

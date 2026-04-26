@@ -9,6 +9,21 @@ import { signOut } from "next-auth/react";
 import { VaultItemCard, type VaultItemData } from "@/components/vault/vault-item-card";
 import { AddItemModal } from "@/components/vault/add-item-modal";
 import { ItemDetailPanel } from "@/components/vault/item-detail-panel";
+import { FolderSidebar } from "@/components/vault/folder-sidebar";
+import { ExportImportModal } from "@/components/vault/export-import-modal";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  DragEndEvent,
+  DragStartEvent,
+} from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import { toast } from "sonner";
 
 type FilterType = "all" | "login" | "note" | "card" | "identity" | "favorites";
 
@@ -18,18 +33,23 @@ export default function VaultPage() {
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showExportImportModal, setShowExportImportModal] = useState(false);
   const [decryptedItems, setDecryptedItems] = useState<Map<string, VaultItemData>>(new Map());
+  const [activeDragItem, setActiveDragItem] = useState<VaultItemData | null>(null);
 
   const queryInput = filter === "favorites"
     ? { favoritesOnly: true }
     : filter !== "all"
     ? { type: filter as "login" | "note" | "card" | "identity" }
-    : undefined;
+    : { folderId: activeFolderId === null ? undefined : activeFolderId }; // Filter by folder when "all"
 
   const { data: rawItems, refetch } = trpc.vault.list.useQuery(queryInput);
   const toggleFavMutation = trpc.vault.toggleFavorite.useMutation();
+  const moveToFolderMutation = trpc.vault.moveToFolder.useMutation();
+  const reorderMutation = trpc.vault.reorder.useMutation();
 
   // Decrypt items for display (name + username only)
   useEffect(() => {
@@ -91,6 +111,75 @@ export default function VaultPage() {
     await signOut({ callbackUrl: "/login" });
   };
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor)
+  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    if (active.data.current?.type === "VaultItem") {
+      setActiveDragItem(active.data.current.item);
+    }
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragItem(null);
+
+    if (!over) return;
+
+    if (active.data.current?.type === "VaultItem" && over.data.current?.type === "Folder") {
+      const itemId = active.id as string;
+      const folderId = over.data.current.folderId as string | null;
+      
+      // Don't move if it's already in that folder
+      if (filter === "all" && activeFolderId === folderId) return;
+
+      try {
+        // Optimistic update
+        const itemStrId = String(itemId);
+        setDecryptedItems((prev) => {
+          const next = new Map(prev);
+          next.delete(itemStrId);
+          return next;
+        });
+
+        await moveToFolderMutation.mutateAsync({ id: itemId, folderId });
+        refetch();
+        toast.success("Item moved");
+      } catch {
+        refetch();
+        toast.error("Failed to move item");
+      }
+    } else if (active.id !== over.id && active.data.current?.type === "VaultItem" && over.data.current?.type === "VaultItem") {
+      // Reordering
+      const items = Array.from(decryptedItems.values());
+      const oldIndex = items.findIndex((i) => i.id === active.id);
+      const newIndex = items.findIndex((i) => i.id === over.id);
+
+      const newItems = arrayMove(items, oldIndex, newIndex);
+      
+      // Update local state optimistically
+      const newMap = new Map();
+      newItems.forEach((i) => newMap.set(i.id, i));
+      setDecryptedItems(newMap);
+
+      // Save to backend
+      const updates = newItems.map((item, index) => ({
+        id: item.id,
+        sortOrder: index,
+      }));
+
+      try {
+        await reorderMutation.mutateAsync(updates);
+      } catch {
+        refetch();
+        toast.error("Failed to save order");
+      }
+    }
+  };
+
   const sidebarCategories: { key: FilterType; label: string; icon: React.ReactNode }[] = [
     { key: "all", label: "All Items", icon: <Shield className="w-4 h-4" /> },
     { key: "favorites", label: "Favorites", icon: <Star className="w-4 h-4" /> },
@@ -117,117 +206,167 @@ export default function VaultPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex">
-      {/* Sidebar */}
-      <aside className="w-56 bg-zinc-950 border-r border-zinc-800/50 p-4 flex flex-col">
-        <div className="flex items-center gap-2 mb-8 px-2">
-          <Shield className="w-6 h-6 text-blue-400" />
-          <span className="font-bold text-white text-lg tracking-tight">PassMan</span>
-        </div>
-
-        <nav className="flex-1 space-y-1">
-          {sidebarCategories.map((cat) => (
-            <button
-              key={cat.key}
-              onClick={() => { setFilter(cat.key); setSelectedId(null); }}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all ${
-                filter === cat.key
-                  ? "bg-blue-500/10 text-blue-400"
-                  : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
-              }`}
-            >
-              {cat.icon}
-              {cat.label}
-            </button>
-          ))}
-        </nav>
-
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-        >
-          <LogOut className="w-4 h-4" />
-          Lock Vault
-        </button>
-      </aside>
-
-      {/* Main Content */}
-      <div className="flex-1 flex">
-        {/* Item List */}
-        <div className="w-80 border-r border-zinc-800/50 flex flex-col">
-          {/* Search + Add */}
-          <div className="p-4 border-b border-zinc-800/50 space-y-3">
-            <div className="relative">
-              <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search vault..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              />
-            </div>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="w-full flex items-center justify-center gap-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg py-2 text-sm font-medium hover:bg-blue-500/20 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              Add Item
-            </button>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="min-h-screen bg-zinc-950 flex">
+        {/* Sidebar */}
+        <aside className="w-56 bg-zinc-950 border-r border-zinc-800/50 p-4 flex flex-col">
+          <div className="flex items-center gap-2 mb-8 px-2">
+            <Shield className="w-6 h-6 text-blue-400" />
+            <span className="font-bold text-white text-lg tracking-tight">PassMan</span>
           </div>
 
-          {/* Items */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-            {filteredItems.length === 0 ? (
-              <div className="text-center py-12">
-                <Shield className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
-                <p className="text-zinc-500 text-sm">No items found</p>
-              </div>
-            ) : (
-              filteredItems.map((item) => (
-                <VaultItemCard
-                  key={item.id}
-                  item={item}
-                  isSelected={selectedId === item.id}
-                  onSelect={setSelectedId}
-                  onToggleFavorite={handleToggleFavorite}
-                />
-              ))
+          <nav className="space-y-1">
+            {sidebarCategories.map((cat) => (
+              <button
+                key={cat.key}
+                onClick={() => { setFilter(cat.key); setActiveFolderId(null); setSelectedId(null); }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all ${
+                  filter === cat.key && activeFolderId === null
+                    ? "bg-blue-500/10 text-blue-400"
+                    : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                }`}
+              >
+                {cat.icon}
+                {cat.label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="flex-1 overflow-y-auto">
+            {filter === "all" && (
+              <FolderSidebar
+                activeFolderId={activeFolderId}
+                onSelectFolder={(id) => {
+                  setActiveFolderId(id);
+                  setFilter("all");
+                  setSelectedId(null);
+                }}
+              />
             )}
           </div>
 
-          {/* Count */}
-          <div className="p-3 border-t border-zinc-800/50 text-xs text-zinc-600 text-center">
-            {filteredItems.length} item{filteredItems.length !== 1 ? "s" : ""}
+          <button
+            onClick={() => setShowExportImportModal(true)}
+            className="flex items-center gap-2 px-3 py-2 mt-4 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+          >
+            <Shield className="w-4 h-4" />
+            Export & Import
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-3 py-2 mt-2 text-sm text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Lock Vault
+          </button>
+        </aside>
+
+        {/* Main Content */}
+        <div className="flex-1 flex">
+          {/* Item List */}
+          <div className="w-80 border-r border-zinc-800/50 flex flex-col">
+            {/* Search + Add */}
+            <div className="p-4 border-b border-zinc-800/50 space-y-3">
+              <div className="relative">
+                <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search vault..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                />
+              </div>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="w-full flex items-center justify-center gap-2 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg py-2 text-sm font-medium hover:bg-blue-500/20 transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Add Item
+              </button>
+            </div>
+
+            {/* Items */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+              {filteredItems.length === 0 ? (
+                <div className="text-center py-12">
+                  <Shield className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
+                  <p className="text-zinc-500 text-sm">No items found</p>
+                </div>
+              ) : (
+                <SortableContext items={filteredItems.map(i => i.id)} strategy={verticalListSortingStrategy}>
+                  {filteredItems.map((item) => (
+                    <VaultItemCard
+                      key={item.id}
+                      item={item}
+                      isSelected={selectedId === item.id}
+                      onSelect={setSelectedId}
+                      onToggleFavorite={handleToggleFavorite}
+                    />
+                  ))}
+                </SortableContext>
+              )}
+            </div>
+
+            {/* Count */}
+            <div className="p-3 border-t border-zinc-800/50 text-xs text-zinc-600 text-center">
+              {filteredItems.length} item{filteredItems.length !== 1 ? "s" : ""}
+            </div>
+          </div>
+
+          {/* Detail Panel */}
+          <div className="flex-1 p-6 overflow-y-auto">
+            {selectedRawItem ? (
+              <ItemDetailPanel
+                item={selectedRawItem}
+                onClose={() => setSelectedId(null)}
+                onDeleted={() => { setSelectedId(null); refetch(); }}
+                onUpdated={() => refetch()}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <Shield className="w-16 h-16 text-zinc-800 mx-auto mb-4" />
+                  <p className="text-zinc-500">Select an item to view details</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Detail Panel */}
-        <div className="flex-1 p-6 overflow-y-auto">
-          {selectedRawItem ? (
-            <ItemDetailPanel
-              item={selectedRawItem}
-              onClose={() => setSelectedId(null)}
-              onDeleted={() => { setSelectedId(null); refetch(); }}
-              onUpdated={() => refetch()}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <Shield className="w-16 h-16 text-zinc-800 mx-auto mb-4" />
-                <p className="text-zinc-500">Select an item to view details</p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+        {/* Add Item Modal */}
+        <AddItemModal
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          onSuccess={() => refetch()}
+        />
 
-      {/* Add Item Modal */}
-      <AddItemModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onSuccess={() => refetch()}
-      />
-    </div>
+        {/* Export/Import Modal */}
+        <ExportImportModal
+          isOpen={showExportImportModal}
+          onClose={() => setShowExportImportModal(false)}
+          onSuccess={() => refetch()}
+        />
+
+        <DragOverlay>
+          {activeDragItem ? (
+            <div className="opacity-80 scale-105 shadow-2xl pointer-events-none">
+              <VaultItemCard
+                item={activeDragItem}
+                isSelected={false}
+                onSelect={() => {}}
+                onToggleFavorite={() => {}}
+              />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </div>
+    </DndContext>
   );
 }
